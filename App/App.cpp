@@ -118,6 +118,14 @@ void print_error_message(sgx_status_t ret)
     	printf("Error code is 0x%X. Please refer to the \"Intel SGX SDK Developer Reference\" for more details.\n", ret);
 }
 
+void check_ecall_ret(sgx_status_t ret) 
+{
+    if (ret != SGX_SUCCESS) {
+        print_error_message(ret);
+        exit(-1);
+    }
+}
+
 /* Initialize the enclave:
  *   Call sgx_create_enclave to initialize an enclave instance
  */
@@ -195,9 +203,11 @@ static size_t buffer_sizes[NUMBER_OF_SIGNED_ENCLAVES] = {
     1073741824          //1GiB
 };
 
+#define UN_ALLOCATABLE_BYTES 450000
 #define NUMBER_OF_ENTRIES 50
 #define BILLION  1000000000.0
-#define PROTECTED_FILENAME "protectedFile"
+#define PROTECTED_FILENAME "protecFile.txt"
+
 /* Application entry */
 int main(int argc, char *argv[])
 {
@@ -211,23 +221,25 @@ int main(int argc, char *argv[])
 
     for (size_t i = 0; i < NUMBER_OF_SIGNED_ENCLAVES; i++)
     {
-
+        size_t bufferSize = buffer_sizes[i] - UN_ALLOCATABLE_BYTES;
         for (size_t j = 0; j < NUMBER_OF_ENTRIES; j++)
         {
-            if(initialize_enclave(enclave_names[i]) < 0)    return -1;                  // Enclave initialisation for writting (not included in the measurement)
-            ecall_allocate(global_eid, buffer_sizes[i]);                                // Buffer allocation for writting (not included in the measurement)
+            if(initialize_enclave(enclave_names[i]) < 0)    return -1;                          // Enclave initialisation for writting (not included in the measurement)
+            ecall_allocate(global_eid, bufferSize);                                             // Buffer allocation for writting (not included in the measurement)
 
-            clock_gettime(CLOCK_REALTIME, &start);                                      // Benchmark start
-            ret = ecall_write_to_disk(global_eid, &result, PROTECTED_FILENAME, buffer_sizes[i]);    // Writting to disk with the appropriate buffer size 
-            if (ret != SGX_SUCCESS || result == 0)          return -1;           
-            sgx_destroy_enclave(global_eid);                                            // Destroying the enclave after writting
-            if(initialize_enclave(enclave_names[i]) < 0)    return -1;                  // Enclave initialising for reading
-            ret = ecall_read_from_disk(global_eid, &result, PROTECTED_FILENAME, buffer_sizes[i]);   // Reading from disk with the appropriate buffer size
-            if (ret != SGX_SUCCESS || result == 0)          return -1;           
-            clock_gettime(CLOCK_REALTIME, &end);                                        // Benchmark end
+            clock_gettime(CLOCK_REALTIME, &start);                                              // Benchmark start
+            ret = ecall_write_to_disk(global_eid, &result, PROTECTED_FILENAME, bufferSize);     // Writting to disk with the appropriate buffer size 
+            check_ecall_ret(ret);
+            if (result == 0)          return -1;           
+            sgx_destroy_enclave(global_eid);                                                    // Destroying the enclave after writting
+            if(initialize_enclave(enclave_names[i]) < 0)    return -1;                          // Enclave initialising for reading
+            ret = ecall_read_from_disk(global_eid, &result, PROTECTED_FILENAME, bufferSize);    // Reading from disk with the appropriate buffer size
+            check_ecall_ret(ret);
+            if (result == 0)          return -1;           
+            clock_gettime(CLOCK_REALTIME, &end);                                                // Benchmark end
             double time_spent = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / BILLION;
             enclave_results[i][j] = time_spent;
-            sgx_destroy_enclave(global_eid);                                            // Destroying the enclave after reading (not included in the measurement)
+            sgx_destroy_enclave(global_eid);                                                    // Destroying the enclave after reading (not included in the measurement)
         }   
     }
 

@@ -61,7 +61,7 @@ void free_buffer()
 void ecall_allocate(size_t size) 
 {
     buffer = (char *) malloc(size * sizeof(char));
-    if(buffer == NULL) printf("Error allocating buffer memory!\n");
+    if(buffer == NULL)  printf("Error allocating buffer memory with size of %d\n", size);  
 }
 
 
@@ -73,8 +73,13 @@ size_t ecall_write_to_disk(const char *fname, size_t size)
         printf("failed to open the file!\n");
         return 0;
     } 
-
+    
     size_t result = sgx_fwrite(buffer, sizeof(char), size, sFile);
+    /*if(sgx_ferror(sFile) != 0) {
+        printf("File is in a bad status and now fixing it!\n");
+        sgx_clearerr(sFile);
+        if(sgx_ferror(sFile) != 0) printf("problem couldn't be fixed!\n");
+    }*/
     if(result != size)
     {
         printf("writting failed!\n");
