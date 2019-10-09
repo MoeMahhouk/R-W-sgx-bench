@@ -92,7 +92,7 @@ size_t ecall_write_to_disk(const char *fname, size_t size)
 
 size_t ecall_read_from_disk(const char *fname, size_t size)
 {
-    SGX_FILE* sFile = sgx_fopen_auto_key(fname, "w");
+    SGX_FILE* sFile = sgx_fopen_auto_key(fname, "r");
     if(sFile == NULL)
     {   
         printf("failed to open the file!\n");
