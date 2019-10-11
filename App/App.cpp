@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 
     for (size_t i = 0; i < NUMBER_OF_SIGNED_ENCLAVES; i++)
     {
-        size_t bufferSize = buffer_sizes[i] - UN_ALLOCATABLE_BYTES;
+        size_t bufferSize = buffer_sizes[i] / 2; // - UN_ALLOCATABLE_BYTES;
         for (size_t j = 0; j < NUMBER_OF_ENTRIES; j++)
         {
             if(initialize_enclave(enclave_names[i]) < 0)    return -1;                          // Enclave initialisation for writting (not included in the measurement)
