@@ -155,57 +155,53 @@ void ocall_print_string(const char *str)
     printf("%s", str);
 }
 
+
 #define MAX_SIGNED_ENCLAVE_NAME 32
+struct __encl {
+	char name[MAX_SIGNED_ENCLAVE_NAME];
+	uint64_t size;
+};
+
 #define NUMBER_OF_SIGNED_ENCLAVES 20
-static char enclave_names[NUMBER_OF_SIGNED_ENCLAVES][MAX_SIGNED_ENCLAVE_NAME] = {
-"enclave.signed.so",
-"enclave.signed.2MB.so",
-"enclave.signed.3MB.so",
-"enclave.signed.4MB.so",
-"enclave.signed.6MB.so",
-"enclave.signed.8MB.so",
-"enclave.signed.12MB.so",
-"enclave.signed.16MB.so",
-"enclave.signed.24MB.so",
-"enclave.signed.32MB.so",
-"enclave.signed.48MB.so",
-"enclave.signed.64MB.so",
-"enclave.signed.96MB.so",
-"enclave.signed.128MB.so",
-"enclave.signed.196MB.so",
-"enclave.signed.256MB.so",
-"enclave.signed.384MB.so",
-"enclave.signed.512MB.so",
-"enclave.signed.786MB.so",
-"enclave.signed.1GB.so"
+static struct __encl enclaves[NUMBER_OF_SIGNED_ENCLAVES] = {
+	{"enclave.signed.so", 1024*1024},
+	{"enclave.signed.2MB.so", 2*1024*1024},
+	{"enclave.signed.3MB.so", 3*1024*1024},
+	{"enclave.signed.4MB.so", 4*1024*1024},
+	{"enclave.signed.6MB.so", 6*1024*1024},
+	{"enclave.signed.8MB.so", 8*1024*1024},
+	{"enclave.signed.12MB.so", 12*1024*1024},
+	{"enclave.signed.16MB.so", 16*1024*1024},
+	{"enclave.signed.24MB.so", 24*1024*1024},
+	{"enclave.signed.32MB.so", 32*1024*1024},
+	{"enclave.signed.48MB.so", 48*1024*1024},
+	{"enclave.signed.64MB.so", 64*1024*1024},
+	{"enclave.signed.96MB.so", 96*1024*1024},
+	{"enclave.signed.128MB.so", 128*1024*1024},
+	{"enclave.signed.196MB.so", 196*1024*1024},
+	{"enclave.signed.256MB.so", 256*1024*1024},
+	{"enclave.signed.384MB.so", 384*1024*1024},
+	{"enclave.signed.512MB.so", 512*1024*1024},
+	{"enclave.signed.786MB.so", 786*1024*1024},
+	{"enclave.signed.1GB.so", 1024*1024*1024}
 };
 
-static size_t buffer_sizes[NUMBER_OF_SIGNED_ENCLAVES] = {
-    1048576,            //1MiB
-    2097152,            //2MiB
-    3145728,            //3MiB
-    4194304,            //4MiB
-    6291456,            //6MiB
-    8388608,            //8MiB
-    12582912,           //12MiB
-    16777216,           //16MiB
-    25165824,           //24MiB
-    33554432,           //32MiB
-    50331648,           //48MiB
-    67108864,           //64MiB
-    100663296,          //96MiB
-    134217728,          //128MiB
-    205520896,          //196MiB
-    268435456,          //256MiB
-    402653184,          //384MiB
-    536870912,          //512MiB
-    824180736,          //786MiB
-    1073741824          //1GiB
-};
+void timespec_diff(struct timespec *start, struct timespec *stop,
+                   struct timespec *result)
+{
+    if ((stop->tv_nsec - start->tv_nsec) < 0) {
+        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    } else {
+        result->tv_sec = stop->tv_sec - start->tv_sec;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+    }
 
-#define UN_ALLOCATABLE_BYTES 450000
+    return;
+}
+
 #define NUMBER_OF_ENTRIES 50
-#define BILLION  1000000000.0
+#define BILLION  1000000000
 #define PROTECTED_FILENAME "protecFile.txt"
 
 /* Application entry */
@@ -214,35 +210,11 @@ int main(int argc, char *argv[])
     (void)(argc);
     (void)(argv);
     
-    double enclave_results[NUMBER_OF_SIGNED_ENCLAVES][NUMBER_OF_ENTRIES];
+    struct timespec enclave_results[NUMBER_OF_SIGNED_ENCLAVES][NUMBER_OF_ENTRIES];
     struct timespec start, end;
     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
     size_t result = 0;
-
-    for (size_t i = 0; i < NUMBER_OF_SIGNED_ENCLAVES; i++)
-    {
-        size_t bufferSize = buffer_sizes[i] - UN_ALLOCATABLE_BYTES;
-        for (size_t j = 0; j < NUMBER_OF_ENTRIES; j++)
-        {
-            if(initialize_enclave(enclave_names[i]) < 0)    return -1;                          // Enclave initialisation for writting (not included in the measurement)
-            ecall_allocate(global_eid, bufferSize);                                             // Buffer allocation for writting (not included in the measurement)
-
-            clock_gettime(CLOCK_REALTIME, &start);                                              // Benchmark start
-            ret = ecall_write_to_disk(global_eid, &result, PROTECTED_FILENAME, bufferSize);     // Writting to disk with the appropriate buffer size 
-            check_ecall_ret(ret);
-            if (result == 0)          return -1;           
-            sgx_destroy_enclave(global_eid);                                                    // Destroying the enclave after writting
-            if(initialize_enclave(enclave_names[i]) < 0)    return -1;                          // Enclave initialising for reading
-            ret = ecall_read_from_disk(global_eid, &result, PROTECTED_FILENAME, bufferSize);    // Reading from disk with the appropriate buffer size
-            check_ecall_ret(ret);
-            if (result == 0)          return -1;           
-            clock_gettime(CLOCK_REALTIME, &end);                                                // Benchmark end
-            double time_spent = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / BILLION;
-            enclave_results[i][j] = time_spent;
-            sgx_destroy_enclave(global_eid);                                                    // Destroying the enclave after reading (not included in the measurement)
-        }   
-    }
-
+    
     FILE *fp;
     fp = fopen("benchmark_results", "w");
     if (fp == NULL)
@@ -250,20 +222,36 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Couldnt open or create a file for the benchmark data!\n");
     }
 
+
     for (size_t i = 0; i < NUMBER_OF_SIGNED_ENCLAVES; i++)
     {
-        fprintf(fp, "%s raw data:\n", enclave_names[i]);
-        double average = 0;
+        size_t bufferSize = enclaves[i].size / 2;
+        fprintf(fp, "%lu,", enclaves[i].size);
+        uint64_t average = 0;
         for (size_t j = 0; j < NUMBER_OF_ENTRIES; j++)
         {
-            fprintf(fp, "%f,", enclave_results[i][j]);
-            average += enclave_results[i][j];
+            if(initialize_enclave(enclaves[i].name) < 0)    return -1;                          // Enclave initialisation for writting (not included in the measurement)
+            ecall_allocate(global_eid, bufferSize);                                             // Buffer allocation for writting (not included in the measurement)
+
+            clock_gettime(CLOCK_REALTIME, &start);                                              // Benchmark start
+            ret = ecall_write_to_disk(global_eid, &result, PROTECTED_FILENAME, bufferSize);     // Writting to disk with the appropriate buffer size 
+            check_ecall_ret(ret);
+            if (result == 0)          return -1;           
+            sgx_destroy_enclave(global_eid);                                                    // Destroying the enclave after writting
+            if(initialize_enclave(enclaves[i].name) < 0)    return -1;                          // Enclave initialising for reading
+            ret = ecall_read_from_disk(global_eid, &result, PROTECTED_FILENAME, bufferSize);    // Reading from disk with the appropriate buffer size
+            check_ecall_ret(ret);
+            if (result == 0)          return -1;           
+            clock_gettime(CLOCK_REALTIME, &end);                                                // Benchmark end
+            timespec_diff(&start, &end, &(enclave_results[i][j]));
+            sgx_destroy_enclave(global_eid);                                                    // Destroying the enclave after reading (not included in the measurement)
+          	average += enclave_results[i][j].tv_sec * BILLION + enclave_results[i][j].tv_nsec;          
         }
-        average = average/(double) NUMBER_OF_ENTRIES;
-        fprintf(fp, "\ntotal average is: %f\n", average);
-        printf("%s average execution time is : %f seconds\n", enclave_names[i], average);
+        average = average/NUMBER_OF_ENTRIES;
+        fprintf(fp, "%lu\n", average);
+        fflush(fp);   
     }
-    
+
     fclose(fp);
 
     printf("Info: Enclave initialisation benchmark successfully returned.\n");

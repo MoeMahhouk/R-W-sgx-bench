@@ -75,7 +75,8 @@ size_t ecall_write_to_disk(const char *fname, size_t size)
     } 
     
     size_t result = sgx_fwrite(buffer, sizeof(char), size, sFile);
-    /*if(sgx_ferror(sFile) != 0) {
+    /*printf("error number is %d \n" , sgx_ferror(sFile));
+    if(sgx_ferror(sFile) != 0) {
         printf("File is in a bad status and now fixing it!\n");
         sgx_clearerr(sFile);
         if(sgx_ferror(sFile) != 0) printf("problem couldn't be fixed!\n");
